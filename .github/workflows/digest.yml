@@ -1,0 +1,16 @@
+name: Daily RkICS Digest
+
+on:
+  schedule:
+    # 15:00 UTC = 8:30 PM IST exactly. GitHub Actions' free scheduled
+    # workflows run at the precise minute (unlike Vercel Hobby's cron,
+    # which only guarantees "sometime within the hour").
+    - cron: '0 15 * * *'
+  workflow_dispatch: {} # lets you manually trigger it from GitHub's Actions tab too
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger digest endpoint
+        run: curl -X POST "${{ secrets.DIGEST_URL }}"
