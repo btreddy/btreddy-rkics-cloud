@@ -38,8 +38,6 @@ function notRegisteredMsg(chatId) {
   return `You're not registered yet. Ask your admin to add you with this chat ID: ${chatId}`;
 }
 
-// The actual logic, separated from the HTTP handler so it can be unit
-// tested by passing in a fake Telegram "update" object directly.
 async function processUpdate(update) {
   if (update.callback_query) return handleCallback(update.callback_query);
   const msg = update.message;
@@ -127,9 +125,16 @@ async function handleCallback(query) {
 async function handlePlainText(msg) {
   const chatId = msg.chat.id;
   const p = await core.getPending(chatId);
-  if (!p || !p.awaitingReason) return; // nothing pending — ignore unrecognized text
-  await core.setPending(chatId, { ...p, reason: msg.text.trim(), awaitingReason: false });
-  await tgSend(chatId, `📍 Got it. Now share your location to confirm ${p.action}.`);
+  if (p && p.awaitingReason) {
+    await core.setPending(chatId, { ...p, reason: msg.text.trim(), awaitingReason: false });
+    return tgSend(chatId, `📍 Got it. Now share your location to confirm ${p.action}.`);
+  }
+  const sup = await core.findSupervisorByChannelId('telegram', chatId);
+  if (!sup) return tgSend(chatId, notRegisteredMsg(chatId));
+  await tgSend(chatId,
+    `I didn't quite catch that. To submit a DPR, type it starting with /dpr, like:\n` +
+    `/dpr Poured slab on block C, 3 masons on site.\n\n` +
+    `Or use /in, /out, or send a voice note directly.`);
 }
 
 async function handleLocation(msg) {
@@ -188,7 +193,6 @@ async function handleVoice(msg) {
   await tgSend(chatId, `✅ Voice DPR received${site ? ` for ${site.name}` : ''} and logged for today. Thanks!`);
 }
 
-// Vercel serverless function entry point
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(200).send('RkICS Telegram webhook is live.');
   try {
@@ -196,7 +200,7 @@ module.exports = async (req, res) => {
   } catch (err) {
     console.error('webhook error:', err);
   }
-  res.status(200).send('ok'); // always 200 quickly — Telegram doesn't need to wait
+  res.status(200).send('ok');
 };
 
-module.exports.processUpdate = processUpdate; // exported for testing
+module.exports.processUpdate = processUpdate;
