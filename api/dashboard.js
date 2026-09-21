@@ -58,7 +58,7 @@ module.exports = async (req, res) => {
 </style></head>
 <body>
   <h1>RkICS Site Tracker — Dashboard</h1>
-  <div class="sub">Check-in and DPR history. Filter below, or export the filtered view to Excel.</div>
+  <div class="sub">Check-in and DPR history. Filter below, or export the filtered view to Excel. — <a href="/admin">Manage sites & supervisors →</a></div>
   <form method="get" action="/dashboard">
     <div><label>From</label><input type="date" name="from" value="${esc(filters.from || '')}"></div>
     <div><label>To</label><input type="date" name="to" value="${esc(filters.to || '')}"></div>
