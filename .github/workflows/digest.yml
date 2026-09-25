@@ -2,11 +2,13 @@ name: Daily RkICS Digest
 
 on:
   schedule:
-    # 15:00 UTC = 8:30 PM IST exactly. GitHub Actions' free scheduled
-    # workflows run at the precise minute (unlike Vercel Hobby's cron,
-    # which only guarantees "sometime within the hour").
-    - cron: '0 15 * * *'
-  workflow_dispatch: {} # lets you manually trigger it from GitHub's Actions tab too
+    # 15:07 UTC = 8:37 PM IST. Deliberately 7 minutes off the hour —
+    # GitHub's own docs warn that scheduled workflows are more likely to
+    # be delayed right at the top of the hour (a platform-wide high-load
+    # period), which is what caused the digest to fire nearly 4 hours late
+    # on Sept 23 and misreport the wrong calendar day.
+    - cron: '7 15 * * *'
+  workflow_dispatch: {}
 
 jobs:
   send-digest:

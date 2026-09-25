@@ -45,9 +45,16 @@ async function transcribeOne(dprId) {
   fs.writeFileSync(audioPath, audio.data);
 
   try {
-    await run(WHISPER_CLI, [audioPath, '--model', WHISPER_MODEL, '--output_format', 'txt', '--output_dir', tmpDir, '--fp16', 'False']);
-    const txtPath = path.join(tmpDir, `${dprId}.txt`);
-    const text = fs.readFileSync(txtPath, 'utf-8').trim();
+    const stdout = await run(WHISPER_CLI, [audioPath, '--model', WHISPER_MODEL, '--output_format', 'txt', '--output_dir', tmpDir, '--fp16', 'False']);
+
+    // Don't assume Whisper names its output "<dprId>.txt" exactly — that
+    // assumption is what broke last time. Instead, look for whatever .txt
+    // file actually landed in the temp folder.
+    const txtFile = fs.readdirSync(tmpDir).find(f => f.endsWith('.txt'));
+    if (!txtFile) {
+      throw new Error(`Whisper ran but produced no .txt file. Its output was:\n${stdout.slice(0, 500)}`);
+    }
+    const text = fs.readFileSync(path.join(tmpDir, txtFile), 'utf-8').trim();
     return text || '[transcription produced no text — voice note may be silent/unclear]';
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -72,7 +79,7 @@ async function main() {
       console.log(`  [ok] DPR ${id}: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
       ok++;
     } catch (err) {
-      console.error(`  [fail] DPR ${id}: ${err.message.split('\n')[0]}`);
+      console.error(`  [fail] DPR ${id}:\n${err.message.split('\n').slice(0, 6).join('\n')}\n`);
       failed++;
     }
   }

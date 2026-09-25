@@ -2,12 +2,13 @@ name: RkICS Reminders
 
 on:
   schedule:
-    # 10:00 AM IST — nudge anyone who hasn't checked in yet today
-    - cron: '30 4 * * *'
-    # 6:30 PM IST — nudge anyone who forgot to check out or send a DPR,
-    # with a 2-hour buffer before the 8:30 PM MD/CEO digest so people have
-    # time to fix it before MD sees the gap.
-    - cron: '0 13 * * *'
+    # 4:37 UTC = 10:07 AM IST — nudge anyone who hasn't checked in yet.
+    # Shifted 7 minutes off the round number for the same reason as digest.yml.
+    - cron: '37 4 * * *'
+    # 13:07 UTC = 6:37 PM IST — nudge anyone missing checkout/DPR.
+    # This one was previously exactly on the hour (13:00 UTC), which is
+    # the specific pattern GitHub warns runs a higher risk of delay.
+    - cron: '7 13 * * *'
   workflow_dispatch:
     inputs:
       type:
@@ -24,9 +25,9 @@ jobs:
       - name: Determine reminder type
         id: pick
         run: |
-          if [ "${{ github.event.schedule }}" == "30 4 * * *" ]; then
+          if [ "${{ github.event.schedule }}" == "37 4 * * *" ]; then
             echo "type=morning" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" == "0 13 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" == "7 13 * * *" ]; then
             echo "type=evening" >> $GITHUB_OUTPUT
           else
             echo "type=${{ github.event.inputs.type }}" >> $GITHUB_OUTPUT
