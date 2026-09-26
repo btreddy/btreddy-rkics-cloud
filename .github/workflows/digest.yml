@@ -1,13 +1,16 @@
 name: Daily RkICS Digest
 
+# Automatic scheduling now happens via cron-job.org instead of GitHub's own
+# `schedule:` trigger — GitHub Actions' free-tier scheduler proved to be
+# consistently delayed by 3-4+ hours every single day (confirmed across
+# runs #4-7, growing worse each day), which isn't a timing-tweak problem,
+# it's a platform reliability limit. cron-job.org is a free service built
+# specifically to hit a URL at a precise time and doesn't have this issue.
+#
+# This workflow is kept only for manual testing (the "Run workflow" button
+# in GitHub's Actions tab) — it is NOT what triggers the real daily digest
+# anymore.
 on:
-  schedule:
-    # 15:07 UTC = 8:37 PM IST. Deliberately 7 minutes off the hour —
-    # GitHub's own docs warn that scheduled workflows are more likely to
-    # be delayed right at the top of the hour (a platform-wide high-load
-    # period), which is what caused the digest to fire nearly 4 hours late
-    # on Sept 23 and misreport the wrong calendar day.
-    - cron: '7 15 * * *'
   workflow_dispatch: {}
 
 jobs:

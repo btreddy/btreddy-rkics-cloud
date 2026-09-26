@@ -1,14 +1,10 @@
 name: RkICS Reminders
 
+# Same change as digest.yml — automatic scheduling now happens via
+# cron-job.org, not GitHub's own `schedule:` trigger, since it proved
+# consistently unreliable for precise daily timing. This workflow is kept
+# only for manual testing via the "Run workflow" button.
 on:
-  schedule:
-    # 4:37 UTC = 10:07 AM IST — nudge anyone who hasn't checked in yet.
-    # Shifted 7 minutes off the round number for the same reason as digest.yml.
-    - cron: '37 4 * * *'
-    # 13:07 UTC = 6:37 PM IST — nudge anyone missing checkout/DPR.
-    # This one was previously exactly on the hour (13:00 UTC), which is
-    # the specific pattern GitHub warns runs a higher risk of delay.
-    - cron: '7 13 * * *'
   workflow_dispatch:
     inputs:
       type:
@@ -22,15 +18,5 @@ jobs:
   send-reminders:
     runs-on: ubuntu-latest
     steps:
-      - name: Determine reminder type
-        id: pick
-        run: |
-          if [ "${{ github.event.schedule }}" == "37 4 * * *" ]; then
-            echo "type=morning" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.schedule }}" == "7 13 * * *" ]; then
-            echo "type=evening" >> $GITHUB_OUTPUT
-          else
-            echo "type=${{ github.event.inputs.type }}" >> $GITHUB_OUTPUT
-          fi
       - name: Trigger reminder endpoint
-        run: curl -X POST "${{ secrets.REMINDERS_URL }}?type=${{ steps.pick.outputs.type }}"
+        run: curl -X POST "${{ secrets.REMINDERS_URL }}?type=${{ github.event.inputs.type }}"
