@@ -8,22 +8,34 @@ async function tgSend(chatId, text, extra = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text, ...extra }),
   });
-  return res.json();
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.description || 'Telegram API returned ok:false');
+  return data;
 }
 
 module.exports = async (req, res) => {
-  // Vercel Cron calls this automatically at the scheduled time (see
-  // vercel.json). Also safe to hit manually to send an on-demand digest.
   const text = await core.buildDailyDigest();
-  const chatIds = (process.env.TELEGRAM_DIGEST_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const raw = process.env.TELEGRAM_DIGEST_CHAT_IDS || '';
+  const chatIds = raw.split(',').map(s => s.trim()).filter(Boolean);
 
+  const results = [];
   for (const id of chatIds) {
     try {
       await tgSend(id, text, { parse_mode: 'Markdown' });
+      results.push({ chatId: id, ok: true });
     } catch (err) {
-      console.error(`digest send failed for ${id}:`, err.message);
+      results.push({ chatId: id, ok: false, error: err.message });
     }
   }
 
-  res.status(200).json({ sent: chatIds.length, preview: text });
+  const sent = results.filter(r => r.ok).length;
+  const failed = results.filter(r => !r.ok);
+
+  res.status(200).json({
+    configuredChatIds: chatIds.length,
+    sent,
+    failed: failed.length,
+    failedDetails: failed, // shows exactly WHY each one failed, e.g. "chat not found"
+    preview: text,
+  });
 };
