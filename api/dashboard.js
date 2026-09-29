@@ -1,5 +1,6 @@
+const { requireAuth } = require('../lib/auth');
 const {
-  requireAuth, parseFilters, getFilterOptions, getCheckins, getDprs,
+  parseFilters, getFilterOptions, getCheckins, getDprs,
   fmtIST, computeWorkingHours, summarizeWorkingHours,
 } = require('../lib/dashboardData');
 
@@ -9,7 +10,8 @@ function esc(str) {
 }
 
 module.exports = async (req, res) => {
-  if (!requireAuth(req, res)) return;
+  const user = await requireAuth(req, res, 'viewer');
+  if (!user) return;
 
   const filters = parseFilters(req.query);
   const { supervisors, sites } = await getFilterOptions();
@@ -33,6 +35,8 @@ module.exports = async (req, res) => {
   const hoursRows = hoursSummary.map(h => `<tr><td>${esc(h.supervisor)}</td><td>${h.days}</td><td>${h.avgHours}</td><td>${h.totalHours}</td></tr>`).join('');
   const chartLabels = JSON.stringify(hoursSummary.map(h => h.supervisor));
   const chartData = JSON.stringify(hoursSummary.map(h => h.avgHours));
+
+  const adminLink = user.role === 'admin' ? ` — <a href="/admin">Manage sites, supervisors &amp; users →</a>` : '';
 
   res.setHeader('Content-Type', 'text/html');
   res.status(200).send(`<!DOCTYPE html>
@@ -58,7 +62,7 @@ module.exports = async (req, res) => {
 </style></head>
 <body>
   <h1>RkICS Site Tracker — Dashboard</h1>
-  <div class="sub">Check-in and DPR history. Filter below, or export the filtered view to Excel. — <a href="/admin">Manage sites & supervisors →</a></div>
+  <div class="sub">Check-in and DPR history. Filter below, or export the filtered view to Excel.${adminLink} · Signed in as <b>${esc(user.username)}</b></div>
   <form method="get" action="/dashboard">
     <div><label>From</label><input type="date" name="from" value="${esc(filters.from || '')}"></div>
     <div><label>To</label><input type="date" name="to" value="${esc(filters.to || '')}"></div>

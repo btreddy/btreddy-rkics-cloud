@@ -1,5 +1,5 @@
 const admin = require('../lib/adminOps');
-const { requireAuth } = require('../lib/dashboardData');
+const auth = require('../lib/auth');
 
 function esc(str) {
   if (str == null) return '';
@@ -7,7 +7,7 @@ function esc(str) {
 }
 
 async function handlePost(req, res) {
-  const { action } = req.body;
+  const { action } = req.body || {};
   let result;
   try {
     switch (action) {
@@ -38,6 +38,18 @@ async function handlePost(req, res) {
       case 'assign':
         result = await admin.assignSupervisorSite(req.body.supervisorId, req.body.siteId || null);
         break;
+      case 'add-user':
+        result = await auth.createUser(req.body.username, req.body.password, req.body.role);
+        break;
+      case 'reset-password':
+        result = await auth.resetPassword(req.body.id, req.body.password);
+        break;
+      case 'disable-user':
+        result = await auth.setUserActive(req.body.id, false);
+        break;
+      case 'enable-user':
+        result = await auth.setUserActive(req.body.id, true);
+        break;
       default:
         result = { ok: false, message: 'Unknown action.' };
     }
@@ -51,9 +63,10 @@ async function handlePost(req, res) {
   res.end();
 }
 
-async function handleGet(req, res) {
+async function handleGet(req, res, user) {
   const sites = await admin.listAllSites();
   const supervisors = await admin.listAllSupervisors();
+  const users = await auth.listUsers();
   const activeSites = sites.filter(s => s.active);
 
   const banner = req.query.msg
@@ -114,6 +127,28 @@ async function handleGet(req, res) {
       </td>
     </tr>`).join('');
 
+  // Users table: the buttons/inputs point at small standalone forms below
+  // the table (via the `form` attribute), which is valid HTML — unlike
+  // wrapping <td>s in forms.
+  const userRows = users.length ? users.map(u => `
+    <tr class="${u.active ? '' : 'retired'}">
+      <td>${esc(u.username)}</td>
+      <td>${esc(u.role)}</td>
+      <td>${u.active ? 'Active' : 'Disabled'}</td>
+      <td class="actions">
+        <input form="rp-${u.id}" type="password" name="password" placeholder="new password (min 8)" minlength="8" maxlength="128" autocomplete="new-password" required style="width:190px">
+        <button form="rp-${u.id}" type="submit">Reset password</button>
+      </td>
+      <td class="actions">
+        <button form="tg-${u.id}" type="submit" class="${u.active ? 'btn-warn' : 'btn-ok'}">${u.active ? 'Disable' : 'Enable'}</button>
+      </td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="color:#888">No extra users yet — add one above.</td></tr>`;
+
+  const userForms = users.map(u => `
+    <form id="rp-${u.id}" method="POST" action="/admin"><input type="hidden" name="action" value="reset-password"><input type="hidden" name="id" value="${u.id}"></form>
+    <form id="tg-${u.id}" method="POST" action="/admin" onsubmit="return confirm('${u.active ? 'Disable' : 'Enable'} ${esc(u.username)}?')"><input type="hidden" name="action" value="${u.active ? 'disable-user' : 'enable-user'}"><input type="hidden" name="id" value="${u.id}"></form>`).join('');
+
   res.setHeader('Content-Type', 'text/html');
   res.status(200).send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>RkICS Admin</title>
@@ -142,7 +177,7 @@ async function handleGet(req, res) {
 </style></head>
 <body>
   <h1>RkICS Admin</h1>
-  <div class="hint"><a class="top-link" href="/dashboard">← Back to history/reports dashboard</a></div>
+  <div class="hint"><a class="top-link" href="/dashboard">← Back to history/reports dashboard</a> · Signed in as <b>${esc(user.username)}</b></div>
   ${banner}
 
   <h2>Add a new site</h2>
@@ -174,11 +209,27 @@ async function handleGet(req, res) {
     <tr><th>Name</th><th>Telegram Chat ID</th><th>Usual Site</th><th></th></tr>
     ${supRows}
   </table>
+
+  <h2>Dashboard users (who can log in to the website)</h2>
+  <div class="hint"><b>Viewer</b> = can see history, charts and Excel export (good for the office clerk). <b>Admin</b> = also this page. Your main login from Vercel always works as admin and can't be disabled here. Passwords are stored scrambled — nobody can read one back, so if someone forgets theirs, just reset it.</div>
+  <form class="add-form" method="POST" action="/admin" autocomplete="off">
+    <input type="hidden" name="action" value="add-user">
+    <div><label>Username</label><input name="username" required pattern="[A-Za-z0-9._-]{3,32}" title="3-32 characters: letters, numbers, dot, dash or underscore" placeholder="e.g. clerk1"></div>
+    <div><label>Password (min 8)</label><input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></div>
+    <div><label>Role</label><select name="role"><option value="viewer" selected>Viewer (view only)</option><option value="admin">Admin (full access)</option></select></div>
+    <div><button type="submit">Add User</button></div>
+  </form>
+  <table>
+    <tr><th>Username</th><th>Role</th><th>Status</th><th>Reset password</th><th></th></tr>
+    ${userRows}
+  </table>
+  ${userForms}
 </body></html>`);
 }
 
 module.exports = async (req, res) => {
-  if (!requireAuth(req, res)) return;
+  const user = await auth.requireAuth(req, res, 'admin');
+  if (!user) return;
   if (req.method === 'POST') return handlePost(req, res);
-  return handleGet(req, res);
+  return handleGet(req, res, user);
 };

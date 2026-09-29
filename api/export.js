@@ -1,8 +1,10 @@
 const XLSX = require('xlsx');
-const { requireAuth, parseFilters, getCheckins, getDprs, fmtIST } = require('../lib/dashboardData');
+const { requireAuth } = require('../lib/auth');
+const { parseFilters, getCheckins, getDprs, fmtIST } = require('../lib/dashboardData');
 
 module.exports = async (req, res) => {
-  if (!requireAuth(req, res)) return;
+  const user = await requireAuth(req, res, 'viewer');
+  if (!user) return;
 
   const filters = parseFilters(req.query);
   const checkins = await getCheckins(filters);
